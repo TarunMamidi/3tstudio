@@ -109,7 +109,7 @@ function ParticleIntro({ onComplete }) {
     let height = 0;
 
     const image = new Image();
-    image.src = `${process.env.PUBLIC_URL}/logo.png`;
+    image.src = `${process.env.PUBLIC_URL}/logo2.jpeg`;
 
     const clamp = (v) => Math.max(0, Math.min(1, v));
     const ease = (v) => 1 - Math.pow(1 - clamp(v), 3);
@@ -268,7 +268,7 @@ function ParticleIntro({ onComplete }) {
         );
         gradient.addColorStop(
           0.5,
-          "rgba(255,91,46,0.24)"
+          "rgba(73, 60, 56, 0.24)"
         );
         gradient.addColorStop(
           1,
@@ -280,7 +280,7 @@ function ParticleIntro({ onComplete }) {
       }
 
       if (glitch && Math.random() > 0.65) {
-        ctx.fillStyle = "rgba(255,91,46,0.85)";
+        ctx.fillStyle = "rgba(0, 0, 0, 0.85)";
 
         ctx.fillRect(
           Math.random() * width * 0.4,
