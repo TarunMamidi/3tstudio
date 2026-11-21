@@ -2,7 +2,7 @@
 import React, { useEffect, useState } from "react";
 import "./App.css";
 
-const EMAIL = "hello@3tstudio.dev"; // Replace with your email
+const EMAIL = "3tstudiosltd@gmail.com"; // Replace with your email
 
 const services = [
   {
