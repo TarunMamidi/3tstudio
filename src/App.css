@@ -1987,3 +1987,73 @@ a {
     grid-column: auto;
   }
 }
+
+
+/* 3T STUDIO — FIXED SYMBOL LOADING ANIMATION */
+
+.particle-intro {
+  position: fixed;
+  inset: 0;
+  z-index: 99999;
+  background: #050505;
+  color: #f5f5f2;
+  overflow: hidden;
+  opacity: 1;
+  transition: opacity 550ms ease;
+}
+
+.particle-intro.particle-exit {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.particle-intro canvas {
+  display: block;
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.particle-intro .intro-loading {
+  position: absolute;
+  bottom: 30px;
+  left: 5%;
+  width: 90%;
+  height: 2px;
+  background: #292929;
+  overflow: hidden;
+}
+
+.particle-intro .intro-loading > div {
+  height: 100%;
+  background: #ff6418;
+  animation: none !important;
+  transform: none !important;
+  transition: width 80ms linear;
+}
+
+.particle-intro .intro-caption strong span {
+  color: #ff6418;
+  font-size: 0.55em;
+  vertical-align: super;
+}
+
+.particle-intro .intro-caption p {
+  font-family: monospace;
+  letter-spacing: 0.08em;
+}
+
+@media (max-width: 600px) {
+  .particle-intro .intro-caption p {
+    font-size: 9px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .particle-intro,
+  .particle-intro .intro-loading > div {
+    transition: none !important;
+    animation: none !important;
+  }
+}

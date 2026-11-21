@@ -3,7 +3,7 @@ import React, { useEffect, useRef, useState } from "react";
 import "./App.css";
 
 const EMAIL = "3tstudiosltd@gmail.com";
-const INTRO_DURATION = 4800;
+const PUBLIC = process.env.PUBLIC_URL || "";
 
 const services = [
   {
@@ -47,17 +47,18 @@ const projects = [
     category: "INTERACTIVE WEB APPLICATION",
     image: "/webos.png",
     description:
-      "A Linux-inspired virtual operating system recreated inside a website. " +
-      "Visitors can explore a desktop environment featuring Profile, About, " +
-      "Terminal, Calculator, Browser, AI Chatbot and interactive Games.",
-    technologies: ["WEB APPLICATION", "INTERACTIVE UI", "LINUX INSPIRED"],
+      "A Linux-inspired virtual operating system recreated inside a website. Visitors can explore a desktop environment featuring Profile, About, Terminal, Calculator, Browser, AI Chatbot and interactive Games.",
+    technologies: [
+      "WEB APPLICATION",
+      "INTERACTIVE UI",
+      "LINUX INSPIRED",
+    ],
     live: "https://myportfolio-srimantarun.vercel.app/",
     github: "",
     year: "2026",
     featured: true,
     status: "LIVE PROJECT",
   },
-  
 ];
 
 const steps = [
@@ -67,255 +68,445 @@ const steps = [
   ["04", "DEPLOY", "We polish and launch your digital experience."],
 ];
 
+/* ==========================================
+   SYMBOL PARTICLE INTRO
+========================================== */
+
 function ParticleIntro({ onComplete }) {
   const canvasRef = useRef(null);
-  const callbackRef = useRef(onComplete);
-  const completedRef = useRef(false);
+  const onCompleteRef = useRef(onComplete);
+  const doneRef = useRef(false);
+  const exitTimerRef = useRef(null);
+
   const [exiting, setExiting] = useState(false);
+  const [progress, setProgress] = useState(0);
 
   useEffect(() => {
-    callbackRef.current = onComplete;
+    onCompleteRef.current = onComplete;
   }, [onComplete]);
 
   const finish = () => {
-    if (completedRef.current) return;
-    completedRef.current = true;
+    if (doneRef.current) return;
+
+    doneRef.current = true;
+    setProgress(100);
     setExiting(true);
-    window.setTimeout(() => callbackRef.current?.(), 650);
+
+    exitTimerRef.current = window.setTimeout(() => {
+      onCompleteRef.current?.();
+    }, 550);
   };
 
   useEffect(() => {
     const canvas = canvasRef.current;
-    const ctx = canvas?.getContext("2d", { alpha: false });
+    const ctx = canvas?.getContext("2d", {
+      alpha: false,
+    });
 
     if (!ctx) {
-      callbackRef.current?.();
+      onCompleteRef.current?.();
       return;
     }
 
-    if (
-      window.matchMedia("(prefers-reduced-motion: reduce)").matches
-    ) {
-      callbackRef.current?.();
-      return;
-    }
-
-    let raf = 0;
-    let timeout = 0;
     let disposed = false;
-    let startTime = null;
-    let particles = [];
-    let width = 0;
-    let height = 0;
+    let raf = 0;
+    let fallbackTimer = 0;
+    let startedAt = null;
+    let lastProgress = -1;
+
+    let width = window.innerWidth;
+    let height = window.innerHeight;
+
+    let points = [];
+    let bounds = null;
+
+    const DURATION = 4600;
+
+    const symbols = [
+      "+",
+      "−",
+      "×",
+      "/",
+      "*",
+      "<",
+      ">",
+      "·",
+    ];
+
+    const clamp = (value) =>
+      Math.max(0, Math.min(1, value));
+
+    const smooth = (value) => {
+      const t = clamp(value);
+      return t * t * (3 - 2 * t);
+    };
+
+    const complete = () => {
+      if (disposed || doneRef.current) return;
+
+      doneRef.current = true;
+      setProgress(100);
+      setExiting(true);
+
+      exitTimerRef.current = window.setTimeout(() => {
+        if (!disposed) {
+          onCompleteRef.current?.();
+        }
+      }, 550);
+    };
 
     const image = new Image();
-    image.src = `${process.env.PUBLIC_URL}/logo2.jpeg`;
 
-    const clamp = (v) => Math.max(0, Math.min(1, v));
-    const ease = (v) => 1 - Math.pow(1 - clamp(v), 3);
-
-    function setup() {
+    const resizeCanvas = () => {
       width = window.innerWidth;
       height = window.innerHeight;
 
-      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      const dpr = Math.min(
+        window.devicePixelRatio || 1,
+        2
+      );
 
       canvas.width = Math.round(width * dpr);
       canvas.height = Math.round(height * dpr);
+
       canvas.style.width = `${width}px`;
       canvas.style.height = `${height}px`;
 
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    };
 
-      const off = document.createElement("canvas");
-      off.width = 300;
-      off.height = 300;
+    function prepare() {
+      resizeCanvas();
 
-      const oc = off.getContext("2d", {
+      const naturalW = image.naturalWidth;
+      const naturalH = image.naturalHeight;
+
+      if (!naturalW || !naturalH) {
+        complete();
+        return false;
+      }
+
+      const sampleW = 300;
+      const sampleH = Math.max(
+        1,
+        Math.round((sampleW * naturalH) / naturalW)
+      );
+
+      const offscreen = document.createElement("canvas");
+
+      offscreen.width = sampleW;
+      offscreen.height = sampleH;
+
+      const offCtx = offscreen.getContext("2d", {
         willReadFrequently: true,
       });
 
-      if (!oc) return;
+      if (!offCtx) {
+        complete();
+        return false;
+      }
 
-      oc.fillStyle = "#000";
-      oc.fillRect(0, 0, 300, 300);
-      oc.drawImage(image, 0, 0, 300, 300);
-
-      const pixels = oc.getImageData(0, 0, 300, 300).data;
-      const size = Math.min(
-        width * 0.72,
-        height * 0.63,
-        540
+      offCtx.drawImage(
+        image,
+        0,
+        0,
+        sampleW,
+        sampleH
       );
 
-      const points = [];
-      const spacing = width < 600 ? 4 : 3;
+      const pixels = offCtx.getImageData(
+        0,
+        0,
+        sampleW,
+        sampleH
+      ).data;
 
-      for (let y = 0; y < 300; y += spacing) {
-        for (let x = 0; x < 300; x += spacing) {
-          const i = (y * 300 + x) * 4;
+      const candidates = [];
 
-          const brightness =
-            (pixels[i] + pixels[i + 1] + pixels[i + 2]) / 3;
+      for (let y = 0; y < sampleH; y += 3) {
+        for (let x = 0; x < sampleW; x += 3) {
+          const i = (y * sampleW + x) * 4;
+
+          const brightness = Math.max(
+            pixels[i],
+            pixels[i + 1],
+            pixels[i + 2]
+          );
 
           if (
-            brightness > 125 &&
-            Math.random() > 0.1
+            pixels[i + 3] > 100 &&
+            brightness > 100
           ) {
-            points.push({
-              tx:
-                width / 2 +
-                (x / 300 - 0.5) * size,
-              ty:
-                height / 2 +
-                (y / 300 - 0.5) * size,
-            });
+            candidates.push({ x, y });
           }
         }
       }
 
-      for (let i = points.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [points[i], points[j]] = [points[j], points[i]];
+      if (!candidates.length) {
+        complete();
+        return false;
       }
 
-      particles = points
-        .slice(0, width < 600 ? 2100 : 3500)
-        .map((point) => {
-          const angle = Math.random() * Math.PI * 2;
+      let minX = sampleW;
+      let minY = sampleH;
+      let maxX = 0;
+      let maxY = 0;
+
+      candidates.forEach(({ x, y }) => {
+        minX = Math.min(minX, x);
+        minY = Math.min(minY, y);
+        maxX = Math.max(maxX, x);
+        maxY = Math.max(maxY, y);
+      });
+
+      const cropW = maxX - minX + 3;
+      const cropH = maxY - minY + 3;
+
+      const scale = Math.min(
+        (width * 0.68) / cropW,
+        (height * 0.47) / cropH,
+        1.65
+      );
+
+      const drawW = cropW * scale;
+      const drawH = cropH * scale;
+
+      const left = (width - drawW) / 2;
+      const top = (height - drawH) / 2 - 18;
+
+      bounds = {
+        left,
+        top,
+        drawW,
+        drawH,
+        minX,
+        minY,
+        cropW,
+        cropH,
+        sampleW,
+        sampleH,
+      };
+
+      const maxParticles =
+        width < 640 ? 700 : 1200;
+
+      const stride = Math.max(
+        1,
+        Math.ceil(candidates.length / maxParticles)
+      );
+
+      points = candidates
+        .filter((_, index) => index % stride === 0)
+        .map((point, index) => {
+          const tx =
+            left + (point.x - minX) * scale;
+
+          const ty =
+            top + (point.y - minY) * scale;
+
+          const angle =
+            index * 2.399963229728653;
+
           const distance =
-            Math.max(width, height) *
-            (0.25 + Math.random() * 0.75);
+            55 + (index % 83) * 2;
 
           return {
-            ...point,
+            tx,
+            ty,
             sx:
-              width / 2 +
+              tx +
               Math.cos(angle) * distance,
             sy:
-              height / 2 +
+              ty +
               Math.sin(angle) * distance,
-            delay: Math.random() * 0.33,
-            radius: 0.65 + Math.random() * 1.15,
-            phase: Math.random() * Math.PI * 2,
+            delay:
+              ((index % 31) / 31) * 0.18,
+            symbol:
+              symbols[index % symbols.length],
           };
         });
+
+      return true;
     }
 
     function draw(timestamp) {
-      if (disposed) return;
-      if (startTime === null) startTime = timestamp;
+      if (disposed || doneRef.current) return;
 
-      const elapsed = timestamp - startTime;
-      const progress = clamp(elapsed / INTRO_DURATION);
-      const formation = clamp(progress / 0.65);
-      const glitch =
-        progress > 0.70 && progress < 0.84;
+      if (startedAt === null) {
+        startedAt = timestamp;
+      }
+
+      const elapsed = timestamp - startedAt;
+      const p = clamp(elapsed / DURATION);
+
+      const currentProgress = Math.floor(p * 100);
+
+      if (currentProgress !== lastProgress) {
+        lastProgress = currentProgress;
+        setProgress(currentProgress);
+      }
 
       ctx.fillStyle = "#050505";
       ctx.fillRect(0, 0, width, height);
 
-      for (const p of particles) {
-        const t = ease(
-          (formation - p.delay) / (1 - p.delay)
+      const assembling = smooth(p / 0.68);
+
+      ctx.font = `${
+        width < 640 ? 9 : 11
+      }px monospace`;
+
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+
+      // Mathematical symbols smoothly form the logo.
+      points.forEach((point) => {
+        const t = smooth(
+          (assembling - point.delay) /
+            (1 - point.delay)
         );
 
-        let x = p.sx + (p.tx - p.sx) * t;
-        let y = p.sy + (p.ty - p.sy) * t;
+        const x =
+          point.sx +
+          (point.tx - point.sx) * t;
 
-        const drift = (1 - t) * 26;
+        const y =
+          point.sy +
+          (point.ty - point.sy) * t;
 
-        x +=
-          Math.sin(elapsed * 0.002 + p.phase) * drift;
+        const fadeOut =
+          1 - smooth((p - 0.63) / 0.18);
 
-        y +=
-          Math.cos(elapsed * 0.0017 + p.phase) * drift;
+        const opacity =
+          (0.2 + 0.65 * t) * fadeOut;
 
-        if (glitch && Math.random() > 0.96) {
-          x += (Math.random() - 0.5) * 75;
-          y += (Math.random() - 0.5) * 10;
-        }
+        if (opacity <= 0) return;
 
-        ctx.fillStyle = `rgba(255,255,255,${
-          0.15 + t * 0.85
-        })`;
+        ctx.fillStyle = `rgba(245,245,240,${opacity})`;
 
-        ctx.beginPath();
-        ctx.arc(x, y, p.radius, 0, Math.PI * 2);
-        ctx.fill();
+        ctx.fillText(
+          point.symbol,
+          x,
+          y
+        );
+      });
+
+      // Final crisp logo reveal.
+      if (p > 0.6 && bounds) {
+        const alpha = smooth(
+          (p - 0.6) / 0.23
+        );
+
+        ctx.save();
+        ctx.globalAlpha = alpha;
+
+        const sourceX =
+          (bounds.minX / bounds.sampleW) *
+          image.naturalWidth;
+
+        const sourceY =
+          (bounds.minY / bounds.sampleH) *
+          image.naturalHeight;
+
+        const sourceW = Math.min(
+          image.naturalWidth - sourceX,
+          (bounds.cropW / bounds.sampleW) *
+            image.naturalWidth
+        );
+
+        const sourceH = Math.min(
+          image.naturalHeight - sourceY,
+          (bounds.cropH / bounds.sampleH) *
+            image.naturalHeight
+        );
+
+        ctx.drawImage(
+          image,
+          sourceX,
+          sourceY,
+          sourceW,
+          sourceH,
+          bounds.left,
+          bounds.top,
+          bounds.drawW,
+          bounds.drawH
+        );
+
+        ctx.restore();
       }
 
-      ctx.fillStyle = "rgba(0,0,0,0.15)";
+      // Registered trademark overlay.
+      if (p > 0.65 && bounds) {
+        ctx.save();
 
-      for (let y = 0; y < height; y += 5) {
-        ctx.fillRect(0, y, width, 1);
+        ctx.globalAlpha = smooth(
+          (p - 0.65) / 0.18
+        );
+
+        ctx.fillStyle = "#ff6418";
+
+        const trademarkSize = Math.max(
+          13,
+          Math.min(
+            22,
+            bounds.drawW * 0.052
+          )
+        );
+
+        ctx.font = `bold ${trademarkSize}px Arial`;
+
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+
+        
+
+        ctx.restore();
       }
 
-      if (progress > 0.54 && progress < 0.89) {
-        const scan = (progress - 0.54) / 0.35;
-        const y = height * (0.17 + scan * 0.66);
-
-        const gradient = ctx.createLinearGradient(
-          0,
-          y - 18,
-          0,
-          y + 18
-        );
-
-        gradient.addColorStop(
-          0,
-          "rgba(255,91,46,0)"
-        );
-        gradient.addColorStop(
-          0.5,
-          "rgba(73, 60, 56, 0.24)"
-        );
-        gradient.addColorStop(
-          1,
-          "rgba(255,91,46,0)"
-        );
-
-        ctx.fillStyle = gradient;
-        ctx.fillRect(0, y - 18, width, 36);
-      }
-
-      if (glitch && Math.random() > 0.65) {
-        ctx.fillStyle = "rgba(0, 0, 0, 0.85)";
-
-        ctx.fillRect(
-          Math.random() * width * 0.4,
-          Math.random() * height,
-          Math.random() * width * 0.5,
-          2
-        );
-      }
-
-      if (elapsed < INTRO_DURATION) {
-        raf = requestAnimationFrame(draw);
-      } else if (!completedRef.current) {
-        completedRef.current = true;
-        setExiting(true);
-
-        timeout = window.setTimeout(() => {
-          if (!disposed) callbackRef.current?.();
-        }, 650);
+      if (p < 1) {
+        raf = window.requestAnimationFrame(draw);
+      } else {
+        complete();
       }
     }
 
-    image.onload = () => {
-      if (disposed) return;
-      setup();
-      raf = requestAnimationFrame(draw);
+    const handleImageLoad = () => {
+      if (disposed || doneRef.current) return;
+
+      if (prepare()) {
+        raf = window.requestAnimationFrame(draw);
+      }
     };
 
-    image.onerror = () => {
-      if (!disposed) callbackRef.current?.();
+    const handleImageError = () => {
+      complete();
     };
+
+    // Prevent the loading screen from hanging.
+    fallbackTimer = window.setTimeout(
+      complete,
+      9000
+    );
+
+    const reducedMotion = window.matchMedia(
+      "(prefers-reduced-motion: reduce)"
+    ).matches;
+
+    if (reducedMotion) {
+      complete();
+    } else {
+      image.onload = handleImageLoad;
+      image.onerror = handleImageError;
+
+      image.src = `${PUBLIC}/logo3.png`;
+    }
 
     return () => {
       disposed = true;
-      cancelAnimationFrame(raf);
-      clearTimeout(timeout);
+
+      window.cancelAnimationFrame(raf);
+      window.clearTimeout(fallbackTimer);
+      window.clearTimeout(exitTimerRef.current);
+
       image.onload = null;
       image.onerror = null;
     };
@@ -327,7 +518,10 @@ function ParticleIntro({ onComplete }) {
         exiting ? "particle-exit" : ""
       }`}
     >
-      <canvas ref={canvasRef} aria-hidden="true" />
+      <canvas
+        ref={canvasRef}
+        aria-hidden="true"
+      />
 
       <div className="intro-meta">
         <span>3T STUDIO®</span>
@@ -347,20 +541,40 @@ function ParticleIntro({ onComplete }) {
           <strong>
             3T STUDIO<span>®</span>
           </strong>
-          <small>DESIGN. DEVELOP. CREATE.</small>
+          <small>
+            DESIGN. DEVELOP. CREATE.
+          </small>
         </div>
 
         <p>
-          <i /> INITIALIZING DIGITAL EXPERIENCE
+          <i /> INITIALIZING DIGITAL EXPERIENCE —{" "}
+          {progress}%
         </p>
       </div>
 
-      <div className="intro-loading">
-        <div />
+      <div
+        className="intro-loading"
+        role="progressbar"
+        aria-label="Intro animation"
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-valuenow={progress}
+      >
+        <div
+          style={{
+            width: `${progress}%`,
+            animation: "none",
+            transform: "none",
+          }}
+        />
       </div>
     </div>
   );
 }
+
+/* ==========================================
+   PROJECT CARD
+========================================== */
 
 function ProjectCard({ project }) {
   const [imageError, setImageError] = useState(false);
@@ -384,7 +598,7 @@ function ProjectCard({ project }) {
         <div className="project-preview-wrap">
           {!imageError ? (
             <img
-              src={`${process.env.PUBLIC_URL}${project.image}`}
+              src={`${PUBLIC}${project.image}`}
               alt={`${project.title} preview`}
               className="project-preview"
               loading="lazy"
@@ -395,8 +609,12 @@ function ProjectCard({ project }) {
               <span className="fallback-icon">
                 {project.featured ? "⌘" : "✳"}
               </span>
+
               <strong>{project.title}</strong>
-              <small>3T STUDIO / PROJECT {project.no}</small>
+
+              <small>
+                3T STUDIO / PROJECT {project.no}
+              </small>
             </div>
           )}
         </div>
@@ -475,11 +693,16 @@ function ProjectCard({ project }) {
   );
 }
 
+/* ==========================================
+   MAIN WEBSITE
+========================================== */
+
 function App() {
   const [showIntro, setShowIntro] = useState(true);
   const [dark, setDark] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
-  const [progress, setProgress] = useState(0);
+  const [scrollProgress, setScrollProgress] =
+    useState(0);
 
   const [form, setForm] = useState({
     name: "",
@@ -489,7 +712,10 @@ function App() {
   });
 
   useEffect(() => {
-    document.body.classList.toggle("dark-mode", dark);
+    document.body.classList.toggle(
+      "dark-mode",
+      dark
+    );
 
     return () => {
       document.body.classList.remove("dark-mode");
@@ -512,8 +738,10 @@ function App() {
         document.documentElement.scrollHeight -
         window.innerHeight;
 
-      setProgress(
-        max > 0 ? (window.scrollY / max) * 100 : 0
+      setScrollProgress(
+        max > 0
+          ? (window.scrollY / max) * 100
+          : 0
       );
     };
 
@@ -531,10 +759,13 @@ function App() {
   useEffect(() => {
     if (showIntro) return;
 
+    const elements =
+      document.querySelectorAll(".reveal");
+
     if (!("IntersectionObserver" in window)) {
-      document.querySelectorAll(".reveal").forEach((el) => {
-        el.classList.add("visible");
-      });
+      elements.forEach((element) =>
+        element.classList.add("visible")
+      );
       return;
     }
 
@@ -550,8 +781,8 @@ function App() {
       { threshold: 0.1 }
     );
 
-    document.querySelectorAll(".reveal").forEach((el) => {
-      observer.observe(el);
+    elements.forEach((element) => {
+      observer.observe(element);
     });
 
     return () => observer.disconnect();
@@ -595,9 +826,12 @@ function App() {
       <div className="site-shell">
         <div
           className="scroll-progress"
-          style={{ width: `${progress}%` }}
+          style={{
+            width: `${scrollProgress}%`,
+          }}
         />
 
+        {/* HEADER */}
         <header className="header">
           <a
             href="#home"
@@ -608,7 +842,9 @@ function App() {
 
             <span className="brand-name">
               3T STUDIO<span>®</span>
-              <small>INDEPENDENT DIGITAL STUDIO</small>
+              <small>
+                INDEPENDENT DIGITAL STUDIO
+              </small>
             </span>
           </a>
 
@@ -742,7 +978,7 @@ function App() {
 
                     <img
                       className="hero-logo"
-                      src={`${process.env.PUBLIC_URL}/3t-logo.png`}
+                      src={`${PUBLIC}/logo1.png`}
                       alt="3T Studio logo"
                     />
 
@@ -874,7 +1110,7 @@ function App() {
             </div>
           </section>
 
-          {/* REAL PROJECTS */}
+          {/* PROJECTS */}
           <section
             className="section work-section"
             id="work"
